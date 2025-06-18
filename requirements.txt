@@ -1,0 +1,10 @@
+torch==2.5.1
+torchvision==0.20.1
+torchaudio==2.5.1
+tensordict==0.6.2
+einops==0.8.1
+huggingface-hub==0.29.1
+ultralytics==8.3.82
+scikit-learn==1.6.1
+xformers==0.0.29
+tqdm==4.67.1
