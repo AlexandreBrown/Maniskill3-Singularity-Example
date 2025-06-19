@@ -4,13 +4,10 @@ From: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 %files
     ./envs/maniskill3/environment.yaml /my_container/setup/envs/maniskill3/environment.yaml
     ./requirements.txt /my_container/setup/requirements.txt
-    ./singularity/nvidia_icd.json /usr/share/vulkan/icd.d/nvidia_icd.json
-    ./singularity/10_nvidia.json /usr/share/glvnd/egl_vendor.d/10_nvidia.json
-    ./singularity/nvidia_layers.json /etc/vulkan/implicit_layer.d/nvidia_layers.json
 %post
-        apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
+        export DEBIAN_FRONTEND=noninteractive
         apt-get update \
-        && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        && apt-get install -y --no-install-recommends \
                 build-essential \
                 software-properties-common \
                 ca-certificates \
@@ -20,10 +17,33 @@ From: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
                 unzip \
                 libegl1 \
                 libxext6 \
+                libjpeg-dev \
+                libpng-dev  \
                 libvulkan1 \
                 vulkan-tools \
-                libnvidia-gl-550 \
-                libnvidia-common-550 \
+                vulkan-icd \
+                vulkan-validationlayers \
+                mesa-vulkan-drivers \
+                mesa-utils \
+                libosmesa6-dev \
+                libvulkan-volk-dev \
+                libgulkan-utils \
+                libgulkan-dev \
+                libvulkan-dev \
+                libglfw3 \
+                libglvnd-dev \
+                libgl1-mesa-dev \
+                libegl1-mesa-dev \
+                libgles2-mesa-dev \
+                libglvnd0 \
+                libgl1 \
+                libglx0 \
+                libgles2 \
+                libxau6 \
+                libxdmcp6 \
+                libxcb1 \
+                libx11-6 \
+                xvfb \
         && rm -rf /var/lib/apt/lists/*
         
         # Update and register CA certificates if not done already, needed to avoid SSL error on narval cluster
@@ -38,38 +58,53 @@ From: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
         export PATH="/opt/conda/bin:$PATH"
 
+        # Create some directories for code and dataset
+        # This allows us to bind these to whatever directory the cluster uses on the fly when launching a task
         mkdir /code/
         mkdir /dataset/
         mkdir /tmp_job_data/
         mkdir /final_job_data/
 
+        # Create conda env
         cd /my_container/setup/
         conda env create --file envs/maniskill3/environment.yaml -y
         . /opt/conda/etc/profile.d/conda.sh
         conda activate /opt/conda/envs/maniskill3_env
 
+        # Install dependencies
         pip install -r requirements.txt
+        # If you use opencv (or if a lib needs it), make sure to only install the headless version
+        pip uninstall -y opencv-python
+        pip install --no-cache-dir opencv-python-headless
 
         conda clean -afy
 
+        # This downloads the physx binary required by SAPIEN
+        # Manually downloading at build time avoids needing an internet connection at runtime
         mkdir -p /my_container/.sapien/physx/105.1-physx-5.3.1.patch0/
         wget https://github.com/sapien-sim/physx-precompiled/releases/download/105.1-physx-5.3.1.patch0/linux-so.zip --directory-prefix=/my_container/.sapien/physx/105.1-physx-5.3.1.patch0/
         unzip /my_container/.sapien/physx/105.1-physx-5.3.1.patch0/linux-so.zip -d /my_container/.sapien/physx/105.1-physx-5.3.1.patch0/
         rm /my_container/.sapien/physx/105.1-physx-5.3.1.patch0/linux-so.zip
 
 %environment
-        SHELL=/bin/bash
-        export SHELL
+        export SHELL=/bin/bash
         export DEBIAN_FRONTEND=noninteractive
         export PATH="/opt/conda/envs/maniskill3_env/bin:/opt/conda/bin:$PATH"
         export NVIDIA_DRIVER_CAPABILITIES=all
-        export NVIDIA_VISIBLE_DEVICES=all
+        # This allows using our code in python files (similar to pip install -e /code/Maniskill3-Singularity-Example/)
+        # See the imports from scripts/train_rl.py for an example
+        # But it avoids needing to use pip install which might be denied on some clusters (eg: if only pre-defined libraries are allowed)
         export PYTHONPATH="/code/Maniskill3-Singularity-Example/src/:$PYTHONPATH"
 %runscript
+        # Singularity automatically binds the home directory, so it's possible that physx already exists
         rm -rf $HOME/.sapien/
+        # We manually copy the physx binary we downloaded at build time (which is compatible with SAPIEN)
         mkdir -p $HOME/.sapien/
         cp -r /my_container/.sapien/* $HOME/.sapien/
+        # We activate conda
         . /opt/conda/etc/profile.d/conda.sh
         conda activate /opt/conda/envs/maniskill3_env
+        # We move where our code is
         cd /code/Maniskill3-Singularity-Example/
+        # We execute the command (eg: python scripts/train_rl.py)
         exec $@

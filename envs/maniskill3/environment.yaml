@@ -4,9 +4,6 @@ channels:
 dependencies:
   - conda-forge::python=3.10
   - conda-forge::git
-  # Uncomment if you need Maniskill to work in a notebook
-  # - conda-forge::vulkan-tools
-  # - conda-forge::vulkan-headers
   - pip
   - pip:
       - mani_skill==3.0.0b21
