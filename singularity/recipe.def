@@ -2,8 +2,8 @@ Bootstrap: docker
 From: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
 %files
-    ./envs/maniskill3/environment.yaml /my_container/setup/envs/maniskill3/environment.yaml
-    ./requirements.txt /my_container/setup/requirements.txt
+    ../envs/maniskill3/environment.yaml /my_container/setup/envs/maniskill3/environment.yaml
+    ../requirements.txt /my_container/setup/requirements.txt
 %post
         export DEBIAN_FRONTEND=noninteractive
         apt-get update \
@@ -21,29 +21,6 @@ From: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
                 libpng-dev  \
                 libvulkan1 \
                 vulkan-tools \
-                vulkan-icd \
-                vulkan-validationlayers \
-                mesa-vulkan-drivers \
-                mesa-utils \
-                libosmesa6-dev \
-                libvulkan-volk-dev \
-                libgulkan-utils \
-                libgulkan-dev \
-                libvulkan-dev \
-                libglfw3 \
-                libglvnd-dev \
-                libgl1-mesa-dev \
-                libegl1-mesa-dev \
-                libgles2-mesa-dev \
-                libglvnd0 \
-                libgl1 \
-                libglx0 \
-                libgles2 \
-                libxau6 \
-                libxdmcp6 \
-                libxcb1 \
-                libx11-6 \
-                xvfb \
         && rm -rf /var/lib/apt/lists/*
         
         # Update and register CA certificates if not done already, needed to avoid SSL error on narval cluster
@@ -79,8 +56,9 @@ From: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
         conda clean -afy
 
-        # This downloads the physx binary required by SAPIEN
+        # This downloads the physx GPU binary required by SAPIEN
         # Manually downloading at build time avoids needing an internet connection at runtime
+        # This is equivalent to doing https://github.com/haosulab/ManiSkill/blob/6226567ce326625fa6eacf9aeb3f4008e4339f7e/docker/Dockerfile#L49 but doesn't require to have a GPU at build time
         mkdir -p /my_container/.sapien/physx/105.1-physx-5.3.1.patch0/
         wget https://github.com/sapien-sim/physx-precompiled/releases/download/105.1-physx-5.3.1.patch0/linux-so.zip --directory-prefix=/my_container/.sapien/physx/105.1-physx-5.3.1.patch0/
         unzip /my_container/.sapien/physx/105.1-physx-5.3.1.patch0/linux-so.zip -d /my_container/.sapien/physx/105.1-physx-5.3.1.patch0/
@@ -91,20 +69,20 @@ From: nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
         export DEBIAN_FRONTEND=noninteractive
         export PATH="/opt/conda/envs/maniskill3_env/bin:/opt/conda/bin:$PATH"
         export NVIDIA_DRIVER_CAPABILITIES=all
-        # This allows using our code in python files (similar to pip install -e /code/Maniskill3-Singularity-Example/)
-        # See the imports from scripts/train_rl.py for an example
-        # But it avoids needing to use pip install which might be denied on some clusters (eg: if only pre-defined libraries are allowed)
+        # This allows using our code in python files (similar to pip install -e /code/Maniskill3-Singularity-Example/ if we had a pyproject.toml)
+        # See the imports from scripts/train_rl.py for an example on how to import stuff from src/my_lib
+        # This avoids needing to use pip install which might be denied on some clusters (eg: if only pre-defined libraries are allowed)
         export PYTHONPATH="/code/Maniskill3-Singularity-Example/src/:$PYTHONPATH"
 %runscript
-        # Singularity automatically binds the home directory, so it's possible that physx already exists
+        # Singularity automatically binds the home directory, so it's possible that physx GPU binary already exists
         rm -rf $HOME/.sapien/
-        # We manually copy the physx binary we downloaded at build time (which is compatible with SAPIEN)
+        # We manually copy the physx GPU binary we downloaded at build time (which is compatible with SAPIEN)
         mkdir -p $HOME/.sapien/
         cp -r /my_container/.sapien/* $HOME/.sapien/
-        # We activate conda
+        # We activate our conda env
         . /opt/conda/etc/profile.d/conda.sh
         conda activate /opt/conda/envs/maniskill3_env
-        # We move where our code is
+        # We move where our code is (arbitrary choice, you can do whatever you want here like hardcoding python your_code/scripts/train_rl.py for instance or executing a bash file https://stackoverflow.com/a/51443825/7270039)
         cd /code/Maniskill3-Singularity-Example/
-        # We execute the command (eg: python scripts/train_rl.py)
+        # We execute the command that will be passed during singularity run (eg: python scripts/train_rl.py)
         exec $@

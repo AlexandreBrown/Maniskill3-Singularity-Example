@@ -1,1 +1,0 @@
-sudo singularity build my_image.sif singularity/recipe.def
