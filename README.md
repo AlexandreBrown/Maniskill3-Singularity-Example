@@ -88,7 +88,7 @@ This will return something like this :
 ```
 Conversly, the following is also true, if we run :  
 ```bash
-ls /usr/lib64/libnvidia-*
+ls /usr/lib64/libEGL_*
 ```
 We migth get something like :  
 ```
